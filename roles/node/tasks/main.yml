@@ -1,0 +1,54 @@
+# -*- mode: ansible -*-
+---
+
+- name: Create /var/log/ansible
+  file:
+    path: /var/log/ansible
+    mode: u=rwx,g=rwx,o=rwx
+    state: directory
+
+# Essentially: https://kubernetes.io/docs/setup/independent/install-kubeadm/
+
+- name: Install Docker & APT supporting tools
+  apt:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - docker.io
+    - apt-transport-https
+    - curl
+
+# [WARNING Service-Docker]: docker service is not enabled, please run 'systemctl enable docker.service'
+- name: Ensure Docker service is enabled
+  systemd:
+    service: docker
+    enabled: yes
+    state: started
+
+- name: Add Kubernetes apt-key
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+- name: Add Kubernetes repository
+  apt_repository:
+    repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+    update_cache: yes
+    state: present
+
+- name: Install kube commands
+  apt:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+# TODO: hold kube commands to prevent upgrade
+#   - command: apt-mark showhold
+#   register: held_packages
+#   changed_when: false
+#
+# - command: apt-mark hold cassandra
+#   when: '"cassandra" not in held_packages.stdout'

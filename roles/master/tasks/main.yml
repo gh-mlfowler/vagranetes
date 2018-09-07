@@ -1,0 +1,62 @@
+# -*- mode: ansible -*-
+---
+
+# Essentially: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm//
+
+- name: Initialise kubeadm
+  shell: "kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={{ ansible_default_ipv4.address }} | tee /var/log/ansible/kubeadm-init.log"
+  args:
+    creates: /var/log/ansible/kubeadm-init.log
+  register: kubeadm_out
+
+# The command above outputs:
+#
+# To start using your cluster, you need to run the following as a regular user:
+#
+#  mkdir -p $HOME/.kube
+#  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+#  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+- name: Create kube group
+  group:
+    name: kube
+    system: yes
+
+- name: Create kube user for administration
+  user:
+    name: kube
+    create_home: yes
+    group: kube
+    groups: ~
+    system: yes
+  register: kube_user
+
+- name: Create $HOME/.kube
+  file:
+    path: "{{ kube_user.home }}/.kube"
+    mode: u=rwx,g=rx,o=
+    state: directory
+  become: yes
+  become_user: kube
+
+- name: Copy admin configuration
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ kube_user.home }}/.kube/config"
+    remote_src: yes
+    owner: kube
+    group: kube
+
+- name: Apply Calico Canal RBAC
+  shell: "kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/canal/rbac.yaml | tee /var/log/ansible/kubectl-apply-rbac.log"
+  args:
+    creates: /var/log/ansible/kubectl-apply-rbac.log
+  become: yes
+  become_user: kube
+
+- name: Apply Calico Canal
+  shell: "kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/canal/canal.yaml | tee /var/log/ansible/kubectl-apply-canal.log"
+  args:
+    creates: /var/log/ansible/kubectl-apply-canal.log
+  become: yes
+  become_user: kube

@@ -1,0 +1,6 @@
+---
+
+- name: Configure master node
+  hosts: master
+  roles:
+    - master
