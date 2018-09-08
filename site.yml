@@ -1,6 +1,11 @@
 ---
 
 - name: Configure master node
-  hosts: master
+  hosts: master1
   roles:
     - master
+
+- name: Configure worker1 node
+  hosts: worker1
+  roles:
+    - worker

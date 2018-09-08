@@ -1,0 +1,34 @@
+# -*- mode: ansible -*-
+---
+
+# Essentially: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#join-nodes
+
+# Parse the join information of the form
+#  kubeadm join {ip:port} --token {} --discovery-token-ca-cert-hash {sha256:...}
+
+- name: Echo the join command
+  shell: "cat /vagrant/join.info"
+  register: kube_join
+
+- name: Exract variables from join
+  set_fact:
+    host: "{{ kube_join.stdout | regex_search('join\\s+([^\\s]+)', '\\1') | first }}"
+    token: "{{ kube_join.stdout | regex_search('token\\s+([^\\s]+)', '\\1') | first }}"
+    cert: "{{ kube_join.stdout | regex_search('hash\\s+([^\\s]+)', '\\1') | first }}"
+
+- name: Join the cluster
+  block:
+    - shell: "kubeadm join {{ host }} --token {{ token }} --discovery-token-ca-cert-hash {{ cert }} | tee /var/log/ansible/kubeadm-join.log"
+      args:
+        creates: /var/log/ansible/kubeadm-join.log
+      register: kubeadm_join
+      failed_when: kubeadm_join.stderr is defined and 'WARNING' not in kubeadm_join.stderr
+  rescue:
+    - copy:
+        remote_src: yes
+        src: /var/log/ansible/kubeadm-join.log
+        dest: /var/log/ansible/kubeadm-join-failed.log
+      when: "'/var/log/ansible/kubeadm-join.log' is is_file"
+    - file:
+        path: /var/log/ansible/kubeadm-join.log
+        state: absent

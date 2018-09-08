@@ -9,13 +9,28 @@
     creates: /var/log/ansible/kubeadm-init.log
   register: kubeadm_out
 
-# The command above outputs:
+# kubeadm outputs:
 #
 # To start using your cluster, you need to run the following as a regular user:
 #
 #  mkdir -p $HOME/.kube
 #  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 #  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+#
+# <snip>
+#
+# You can now join any number of machines by running the following on each node as root:
+#
+#  kubeadm join ....
+
+# Is there a way to do this with facts across plays?
+- name: Output join command to shared folder structure
+  copy:
+    content: "{{ item | trim }}"
+    dest: /vagrant/join.info
+  when: item | trim | match('kubeadm.*')
+  with_items:
+    - "{{ kubeadm_out.stdout_lines }}"
 
 - name: Create kube group
   group:
